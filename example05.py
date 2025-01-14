@@ -10,19 +10,29 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # 関数: 株価終値を取得
 def get_stock_price(date, ticker):
-    try:
-        while date.weekday() > 4:  # 週末は平日に戻す
-            date -= timedelta(days=1)
-        data = yf.download(ticker, start=date.strftime("%Y-%m-%d"), end=(date + timedelta(days=1)).strftime("%Y-%m-%d"))
-        logging.info(data)
-        if not data.empty:
-            stock_price = data['Adj Close'].iloc[0] if 'Adj Close' in data.columns else data['Close'].iloc[0]
-            return float(stock_price)
-        else:
-            raise ValueError("指定された日付のデータが見つかりませんでした。")
-    except Exception as e:
-        logging.error(f"株価の取得に失敗しました: {str(e)}")
-        raise
+    retry_limit = 10  # 最大リトライ回数を設定
+    retries = 0
+    while retries < retry_limit:
+        try:
+            while date.weekday() > 4:  # 週末は平日に戻す
+                date -= timedelta(days=1)
+            start_date = date - timedelta(days=7)
+            data = yf.download(ticker, start=start_date.strftime("%Y-%m-%d"), end=(date + timedelta(days=1)).strftime("%Y-%m-%d"))
+            logging.info(data)
+            if not data.empty:
+                stock_price = data['Adj Close'].iloc[-1] if 'Adj Close' in data.columns else data['Close'].iloc[-1]
+                return float(stock_price)
+            else:
+                logging.warning(f"{date} のデータが見つかりませんでした。前日を試します。")
+                date -= timedelta(days=1)  # 前日を試す
+                retries += 1
+        except yf.exceptions.YFPricesMissingError:
+            logging.error(f"ティッカーシンボル {ticker} は非上場の可能性があります。")
+            raise ValueError(f"ティッカーシンボル {ticker} に関連するデータが見つかりませんでした。")
+        except Exception as e:
+            logging.error(f"株価の取得に失敗しました: {str(e)}")
+            raise
+    raise ValueError(f"{retry_limit} 回試みても指定された日付のデータが見つかりませんでした。")
 
 # 関数: TTMレートを取得
 def get_ttm_rate(date):
@@ -67,7 +77,7 @@ st.title("株価計算アプリ")
 
 date_input = st.text_input("権利確定日 (YYYYMMDD):", value="20250109")
 stock_symbol = st.text_input("株式銘柄 (ティッカーシンボル):", value="AVGO")
-stock_amount = st.number_input("株数:", value=0, step=1)
+stock_amount = st.number_input("株数:", value=0, step=1, format='%d')
 
 if st.button("計算"):
     try:
