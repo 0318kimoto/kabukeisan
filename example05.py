@@ -7,7 +7,7 @@ import logging
 import concurrent.futures
 
 # ログの設定
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
 
 # 株価終値を取得（キャッシュを利用）
 @st.cache_data
@@ -16,13 +16,15 @@ def get_stock_price(date, ticker):
     retries = 0
     while retries < retry_limit:
         try:
+            # 対象の日が土日の場合は金曜日の終値を取得する
             while date.weekday() > 4:
                 date -= timedelta(days=1)
             start_date = date - timedelta(days=7)
+            logging.debug(f"開始日: {start_date}, 終了日: {date + timedelta(days=1)}")
             data = yf.download(ticker, start=start_date.strftime("%Y-%m-%d"), end=(date + timedelta(days=1)).strftime("%Y-%m-%d"))
-            logging.info(data)
+            logging.debug(data)
             if not data.empty:
-                stock_price = data['Adj Close'].iloc[-1] if 'Adj Close' in data.columns else data['Close'].iloc[-1]
+                stock_price = data['Close'].iloc[-1]  # 配当調整されていない終値を取得
                 return float(stock_price)
             else:
                 logging.warning(f"{date} のデータが見つかりませんでした。前日を試します。")
@@ -45,10 +47,10 @@ def get_ttm_rate(date):
             response.raise_for_status()
             response.encoding = response.apparent_encoding
             soup = BeautifulSoup(response.text, 'html.parser')
-            logging.info(soup.prettify())
+            logging.debug(soup.prettify())
 
             target_date_str = f"●{date.year}/{date.month}/{date.day}●"
-            logging.info(f"対象日付の文字列: {target_date_str}")
+            logging.debug(f"対象日付の文字列: {target_date_str}")
 
             tds = soup.find_all('td', class_='activity')
             for td in tds:
@@ -56,7 +58,7 @@ def get_ttm_rate(date):
                 for comment in comments:
                     if target_date_str in comment:
                         rate_str = td.get_text().strip()
-                        logging.info(f"コメント内で発見: {comment} - レート: {rate_str}")
+                        logging.debug(f"コメント内で発見: {comment} - レート: {rate_str}")
                         return float(rate_str.replace(',', ''))
             raise ValueError(f"{target_date_str} のTTMレートが見つかりませんでした。")
         except ValueError as e:
@@ -91,10 +93,10 @@ def get_ttm_rate_with_session(date, session):
             response.raise_for_status()
             response.encoding = response.apparent_encoding
             soup = BeautifulSoup(response.text, 'html.parser')
-            logging.info(soup.prettify())
+            logging.debug(soup.prettify())
 
             target_date_str = f"●{date.year}/{date.month}/{date.day}●"
-            logging.info(f"対象日付の文字列: {target_date_str}")
+            logging.debug(f"対象日付の文字列: {target_date_str}")
 
             tds = soup.find_all('td', class_='activity')
             for td in tds:
@@ -102,7 +104,7 @@ def get_ttm_rate_with_session(date, session):
                 for comment in comments:
                     if target_date_str in comment:
                         rate_str = td.get_text().strip()
-                        logging.info(f"コメント内で発見: {comment} - レート: {rate_str}")
+                        logging.debug(f"コメント内で発見: {comment} - レート: {rate_str}")
                         return float(rate_str.replace(',', ''))
             raise ValueError(f"{target_date_str} のTTMレートが見つかりませんでした。")
         except ValueError as e:
@@ -160,9 +162,9 @@ if st.button("計算"):
                         continue
                     subtotal = stock_price * stock_amounts[i] * ttm_rate
                     subtotals.append(subtotal)
-                    cols[i].write(f"株価終値 (USD): {stock_price:.2f}\nTTM (JPY): {subtotal:.2f}")
+                    cols[i].write(f"株価終値 (USD): {stock_price:.2f}<br>TTM換算 (JPY): {int(subtotal)}<br>※少数切り捨て", unsafe_allow_html=True)
                     total_sum += subtotal
                 except Exception as e:
                     cols[i].write(f"データ取得エラー: {str(e)}")
 
-    st.write(f"総額 (JPY): {total_sum:.2f}")
+    st.write(f"総額 (JPY): {int(total_sum)}")
