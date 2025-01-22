@@ -1,10 +1,10 @@
 import streamlit as st
-import yfinance as yf
 from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup, Comment
 import logging
 import concurrent.futures
+from yahoo_fin import stock_info
 
 # ログの設定
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
@@ -16,15 +16,13 @@ def get_stock_price(date, ticker):
     retries = 0
     while retries < retry_limit:
         try:
-            # 対象の日が土日の場合は金曜日の終値を取得する
+            # 対象の日が土日の場合は前営業日の終値を取得する
             while date.weekday() > 4:
                 date -= timedelta(days=1)
-            start_date = date - timedelta(days=7)
-            logging.debug(f"開始日: {start_date}, 終了日: {date + timedelta(days=1)}")
-            data = yf.download(ticker, start=start_date.strftime("%Y-%m-%d"), end=(date + timedelta(days=1)).strftime("%Y-%m-%d"))
-            logging.debug(data)
-            if not data.empty:
-                stock_price = data['Close'].iloc[-1]  # 配当調整されていない終値を取得
+            historical_data = stock_info.get_data(ticker, start_date=date, end_date=date + timedelta(days=1))
+            logging.debug(historical_data)
+            if not historical_data.empty:
+                stock_price = historical_data['close'].iloc[-1]
                 return float(stock_price)
             else:
                 logging.warning(f"{date} のデータが見つかりませんでした。前日を試します。")
@@ -32,7 +30,8 @@ def get_stock_price(date, ticker):
                 retries += 1
         except Exception as e:
             logging.error(f"株価の取得に失敗しました: {str(e)}")
-            raise
+            retries += 1
+            date -= timedelta(days=1)
     raise ValueError(f"{retry_limit} 回試みても指定された日付のデータが見つかりませんでした。")
 
 # TTMレートを取得（キャッシュを利用）
