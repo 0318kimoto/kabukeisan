@@ -5,6 +5,10 @@ from bs4 import BeautifulSoup, Comment
 import logging
 import concurrent.futures
 from yahoo_fin import stock_info
+from decimal import Decimal, getcontext, ROUND_DOWN
+
+# 精度を設定
+getcontext().prec = 28
 
 # ログの設定
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
@@ -23,7 +27,7 @@ def get_stock_price(date, ticker):
             logging.debug(historical_data)
             if not historical_data.empty:
                 stock_price = historical_data['close'].iloc[-1]
-                return float(stock_price)
+                return Decimal(str(round(stock_price, 2)))
             else:
                 logging.warning(f"{date} のデータが見つかりませんでした。前日を試します。")
                 date -= timedelta(days=1)
@@ -58,7 +62,7 @@ def get_ttm_rate(date):
                     if target_date_str in comment:
                         rate_str = td.get_text().strip()
                         logging.debug(f"コメント内で発見: {comment} - レート: {rate_str}")
-                        return float(rate_str.replace(',', ''))
+                        return Decimal(str(rate_str.replace(',', '')))
             raise ValueError(f"{target_date_str} のTTMレートが見つかりませんでした。")
         except ValueError as e:
             logging.warning(f"{date}のTTMレートが見つかりませんでした。前日を試します。")
@@ -104,7 +108,7 @@ def get_ttm_rate_with_session(date, session):
                     if target_date_str in comment:
                         rate_str = td.get_text().strip()
                         logging.debug(f"コメント内で発見: {comment} - レート: {rate_str}")
-                        return float(rate_str.replace(',', ''))
+                        return Decimal(str(rate_str.replace(',', '')))
             raise ValueError(f"{target_date_str} のTTMレートが見つかりませんでした。")
         except ValueError as e:
             logging.warning(f"{date}のTTMレートが見つかりませんでした。前日を試します。")
@@ -145,11 +149,11 @@ for i in range(4):
     stock_amounts.append(stock_amount)
 
 if st.button("計算"):
-    total_sum = 0
+    total_sum = Decimal(0)
     subtotals = []
     
     with requests.Session() as session:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             future_to_data = {executor.submit(fetch_data, date_inputs[i], stock_symbols[i], session): i for i in range(4)}
 
             for future in concurrent.futures.as_completed(future_to_data):
@@ -159,11 +163,16 @@ if st.button("計算"):
                     if stock_price is None or ttm_rate is None:
                         cols[i].write(f"データ取得不要：未来の日付です。")
                         continue
-                    subtotal = stock_price * stock_amounts[i] * ttm_rate
-                    subtotals.append(subtotal)
-                    cols[i].write(f"株価終値 (USD): {stock_price:.2f}<br>TTM換算 (JPY): {int(subtotal)}<br>※少数切り捨て", unsafe_allow_html=True)
-                    total_sum += subtotal
+
+                    cols[i].write(f"株価終値 (USD): {stock_price}")
+                    cols[i].write(f"TTM (JPY): {ttm_rate}")                    
+                    subtotal_intermediate = stock_price * ttm_rate
+                    subtotal_final = (subtotal_intermediate * Decimal(stock_amounts[i])).quantize(Decimal('0'), rounding=ROUND_DOWN)
+                    cols[i].write(f"小計 (JPY): {subtotal_final}")
+                    
+                    subtotals.append(subtotal_final)
+                    total_sum += subtotal_final
                 except Exception as e:
                     cols[i].write(f"データ取得エラー: {str(e)}")
 
-    st.write(f"総額 (JPY): {int(total_sum)}")
+    st.write(f"総額 (JPY): {total_sum}")
