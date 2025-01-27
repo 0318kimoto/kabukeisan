@@ -164,11 +164,10 @@ if st.button("計算"):
                         cols[i].write(f"データ取得不要：未来の日付です。")
                         continue
 
-                    cols[i].write(f"株価終値 (USD): {stock_price}")
-                    cols[i].write(f"TTM (JPY): {ttm_rate}")                    
                     subtotal_intermediate = stock_price * ttm_rate
                     subtotal_final = (subtotal_intermediate * Decimal(stock_amounts[i])).quantize(Decimal('0'), rounding=ROUND_DOWN)
-                    cols[i].write(f"小計 (JPY): {subtotal_final}")
+                    
+                    cols[i].markdown(f"株価終値 (USD): {stock_price}<br>TTM (JPY): {ttm_rate}<br>小計 (JPY): {subtotal_final}", unsafe_allow_html=True)
                     
                     subtotals.append(subtotal_final)
                     total_sum += subtotal_final
