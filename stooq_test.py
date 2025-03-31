@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def fetch_stock_data(ticker: str) -> pd.DataFrame:
     """株価データを取得してDataFrameとして返す"""
-    url = f"https://stooq.com/q/d/l/?s={ticker}&i=d"
+    url = f"http://stooq.com/q/d/l/?s={ticker}&i=d"
     try:
         response = requests.get(url)
         response.raise_for_status()  # HTTPエラーを例外として処理
