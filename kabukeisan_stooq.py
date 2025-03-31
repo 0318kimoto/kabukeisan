@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s')
 # 株価終値を取得（修正版）
 def fetch_stock_data(ticker: str) -> pd.DataFrame:
     """株価データを取得してDataFrameとして返す"""
-    url = f"https://stooq.com/q/d/l/?s={ticker}&i=d"
+    url = f"http://stooq.com/q/d/l/?s={ticker}&i=d"
     try:
         response = requests.get(url)
         response.raise_for_status()  # HTTPエラーを例外として処理
