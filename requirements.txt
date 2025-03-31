@@ -1,5 +1,4 @@
 streamlit
 beautifulsoup4
 requests
-yahoo_fin
 pandas
