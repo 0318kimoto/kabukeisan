@@ -198,17 +198,26 @@ if st.button("計算"):
                 try:
                     stock_price, ttm_rate = future.result()
                     if stock_price is None or ttm_rate is None:
-                        cols[i].write(f"データ取得不要：未来の日付です。")
+                        # Only display this message if the input date is in the future
+                        if datetime.strptime(date_inputs[i], "%Y%m%d") > datetime.now():
+                            cols[i].write(f"データ取得不要：未来の日付です。")
+                        else:
+                            cols[i].write(f"データが見つかりませんでした。")
                         continue
 
                     subtotal_intermediate = stock_price * ttm_rate
                     subtotal_final = (subtotal_intermediate * Decimal(stock_amounts[i])).quantize(Decimal('0'), rounding=ROUND_DOWN)
                     
-                    cols[i].markdown(f"株価終値 (USD): {stock_price}<br>TTM (JPY): {ttm_rate}<br>小計 (JPY): {subtotal_final}", unsafe_allow_html=True)
+                    cols[i].markdown(
+                        f"株価終値 (USD): **{stock_price:,.2f}**<br>"  # カンマと小数点以下2桁
+                        f"TTM (JPY): **{ttm_rate:,.2f}**<br>"       # カンマと小数点以下2桁
+                        f"小計 (JPY): **{subtotal_final:,.0f}**",     # カンマと小数点以下なし
+                        unsafe_allow_html=True
+                    )
                     
                     subtotals.append(subtotal_final)
                     total_sum += subtotal_final
                 except Exception as e:
                     cols[i].write(f"データ取得エラー: {str(e)}")
 
-    st.write(f"総額 (JPY): {total_sum}")
+    st.write(f"総額 (JPY): **{total_sum:,.0f}**")  # カンマと小数点以下なし
